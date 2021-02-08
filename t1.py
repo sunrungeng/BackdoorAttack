@@ -1,6 +1,15 @@
 # -*- coding: utf-8 -*-
+import random
 
-l1 = []
-l2 = [1, 3]
-l1.append(l2)
+import numpy as np
+import torch
+
+l1 = torch.ones((2, 3))
+l2 = torch.ones((2, 3))
+l1.mul_(0.5)
 print(l1)
+
+x = range(4)
+x = np.array(x)
+random.shuffle(x)
+print(x)

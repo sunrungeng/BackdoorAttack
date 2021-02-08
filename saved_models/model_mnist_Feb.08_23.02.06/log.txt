@@ -1,4 +1,4 @@
-current path: saved_models/model_mnist_Feb.08_15.15.41
+current path: saved_models/model_mnist_Feb.08_23.02.06
 Loading data
 build_classes_dict done
 train loaders done
@@ -36,8 +36,8 @@ ___PoisonTrain Local_Simple ,  epoch  11, local model 41, internal_epoch   9,  A
 Current lr: [0.0005000000000000001]
 ___PoisonTrain Local_Simple ,  epoch  11, local model 41, internal_epoch  10,  Average loss: 0.0023, Accuracy: 583/606 (96.2046%), train_poison_data_count: 200
 Global model norm: 16.539532092117113.
-Norm before scaling: 16.817398435451267. Distance: 4.714873483685759
-Total norm for 4 adversaries is: 16.817398435451267. distance: 4.714873483685759
+Norm before scaling: 16.817398435451267. Distance: 4.714873281416422
+Total norm for 4 adversaries is: 16.817398435451267. distance: 4.714873281416422
 ___Test Local_Simple poisoned: True, epoch: 11: Average loss: 0.0628, Accuracy: 8814/8968 (98.2828%)
 poison local model 73 index 1 
 poison_now
@@ -62,8 +62,8 @@ ___PoisonTrain Local_Simple ,  epoch  11, local model 73, internal_epoch   9,  A
 Current lr: [0.0005000000000000001]
 ___PoisonTrain Local_Simple ,  epoch  11, local model 73, internal_epoch  10,  Average loss: 0.0027, Accuracy: 568/591 (96.1083%), train_poison_data_count: 195
 Global model norm: 16.539532092117113.
-Norm before scaling: 16.80606398360704. Distance: 4.568339543097719
-Total norm for 4 adversaries is: 16.80606398360704. distance: 4.568339543097719
+Norm before scaling: 16.806079418470027. Distance: 4.568513852133829
+Total norm for 4 adversaries is: 16.806079418470027. distance: 4.568513852133829
 ___Test Local_Simple poisoned: True, epoch: 11: Average loss: 0.0515, Accuracy: 8852/8968 (98.7065%)
 poison local model 51 index 2 
 poison_now
@@ -114,8 +114,8 @@ ___PoisonTrain Local_Simple ,  epoch  11, local model 74, internal_epoch   9,  A
 Current lr: [0.0005000000000000001]
 ___PoisonTrain Local_Simple ,  epoch  11, local model 74, internal_epoch  10,  Average loss: 0.0017, Accuracy: 543/557 (97.4865%), train_poison_data_count: 180
 Global model norm: 16.539532092117113.
-Norm before scaling: 16.844156745146908. Distance: 4.542214853409748
-Total norm for 4 adversaries is: 16.844156745146908. distance: 4.542214853409748
+Norm before scaling: 16.84416218042758. Distance: 4.542234799375331
+Total norm for 4 adversaries is: 16.84416218042758. distance: 4.542234799375331
 ___Test Local_Simple poisoned: True, epoch: 11: Average loss: 0.0832, Accuracy: 8634/8968 (96.2756%)
 ___Train Local_Simple,  epoch  11, local model 23, internal_epoch   1,  Average loss: 0.0008, Accuracy: 288/293 (98.2935%)
 ___Test Local_Simple poisoned: False, epoch: 11: Average loss: 0.1545, Accuracy: 9477/10000 (94.7700%)
@@ -129,11 +129,4 @@ ___Train Local_Simple,  epoch  11, local model 75, internal_epoch   1,  Average 
 ___Test Local_Simple poisoned: False, epoch: 11: Average loss: 0.1550, Accuracy: 9514/10000 (95.1400%)
 ___Train Local_Simple,  epoch  11, local model 43, internal_epoch   1,  Average loss: 0.0013, Accuracy: 400/408 (98.0392%)
 ___Test Local_Simple poisoned: False, epoch: 11: Average loss: 0.2867, Accuracy: 9062/10000 (90.6200%)
-time spent on training: 281.15003848075867
-___Test Target_Simple poisoned: False, epoch: 11: Average loss: 0.2863, Accuracy: 9352/10000 (93.5200%)
-___Test Target_Simple poisoned: True, epoch: 11: Average loss: 2.8294, Accuracy: 932/8968 (10.3925%)
-Done in 294.42637515068054 sec.
-Server Epoch:12 choose agents : [41, 73, 51, 74, 46, 37, 21, 43, 35, 11].
-___adversary_clean___Train Local_Simple,  epoch  12, local model 41, internal_epoch   1,  Average loss: 0.0020, ___adversary_clean___Accuracy: 584/606 (96.3696%)
-___adversary_clean___Train Local_Simple,  epoch  12, local model 73, internal_epoch   1,  Average loss: 0.0019, ___adversary_clean___Accuracy: 577/591 (97.6311%)
-___adversary_clean___Train Local_Simple,  epoch  12, local model 51, internal_epoch   1,  Average loss: 0.0016, ___adversary_clean___Accuracy: 552/568 (97.1831%)
+time spent on training: 278.4634301662445

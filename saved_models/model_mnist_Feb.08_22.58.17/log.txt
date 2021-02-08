@@ -1,0 +1,11 @@
+current path: saved_models/model_mnist_Feb.08_22.58.17
+Loading data
+build_classes_dict done
+train loaders done
+get poison test loader
+load data done
+Loaded parameters from saved model: LR is 0.1 and current epoch is 11
+create model done
+Poisoned following participants: [41, 73, 51, 74]
+We use following environment for graphs:  mnist_DBA
+Server Epoch:11 choose agents : [41, 73, 51, 74, 23, 76, 63, 11, 75, 43].

@@ -1,5 +1,6 @@
 import logging
 import math
+import random
 import time
 from shutil import copyfile
 
@@ -510,9 +511,6 @@ class Helper:
         updates = dict()
         for i in range(0, adversary_num):
             local_model_update_list = attack_clean_update_dict[adversary_list[i]]
-            print('len(local_model_update_list):', len(local_model_update_list))
-            print(local_model_update_list)
-            break
             update = dict()
             num_samples = num_samples_dict[adversary_list[i]]
 
@@ -524,15 +522,30 @@ class Helper:
                 for name, data in local_model_update_dict.items():
                     weight_accumulator[name].add_(local_model_update_dict[name])
                     update[name].add_(local_model_update_dict[name])
-                    detached_data = data.cpu().detach().numpy()
+                    # detached_data = data.cpu().detach().numpy()
                     # print(detached_data.shape)
-                    detached_data = detached_data.tolist()
-                    # print(detached_data)
-                    local_model_update_dict[name] = detached_data  # from gpu to cpu
+                    # detached_data = detached_data.tolist()
+                    # local_model_update_dict[name] = detached_data  # from gpu to cpu
 
-            updates[state_keys[i]] = (num_samples, update)
+            updates[adversary_list[i]] = (num_samples, update)
 
+        random.shuffle(adversary_list)
+        print('打乱后的adversary_list: ', adversary_list)
+        attack_key = adversary_list[0]
+        attack_dict = dict()
+        for name, data in epochs_submit_update_dict[attack_key][0].items():
+            attack_dict[name] = torch.zeros_like(data)
+            attack_dict[name] = copy.deepcopy(data)
+            weight_accumulator[name].mul_(len(agent_name_keys) - 1)
+            attack_dict[name].mul_(len(agent_name_keys))
+            attack_dict[name].add_(weight_accumulator[name].mul_(-1))
 
+        epochs_submit_update_dict[attack_key][0] = attack_dict
+        for i in range(1, len(adversary_list)):
+            if i == 1:
+                print(epochs_submit_update_dict[adversary_list[i]])
+                print(attack_clean_update_dict[adversary_list[i]])
+            epochs_submit_update_dict[adversary_list[i]] = attack_clean_update_dict[adversary_list[i]]
         return epochs_submit_update_dict
 
     # todo 攻击multi_krum
