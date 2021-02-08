@@ -1,31 +1,24 @@
 import argparse
-import json
-import datetime
-import os
-import logging
-import torch
-import torch.nn as nn
-import train
-import test
-import torch.nn.functional as F
-import torch.optim as optim
-from torch.autograd import Variable
-import math
-import csv
-from torchvision import transforms
-from loan_helper import LoanHelper
-from image_helper import ImageHelper
-from utils.utils import dict_html
-import utils.csv_record as csv_record
-import yaml
-import time
-import visdom
-import numpy as np
-import random
-import config
 import copy
-
+import datetime
+import logging
 import os
+import random
+import time
+
+import numpy as np
+import torch
+import visdom
+import yaml
+
+import config
+import test
+import train
+import utils.csv_record as csv_record
+from image_helper import ImageHelper
+from loan_helper import LoanHelper
+from utils.utils import dict_html
+
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 logger = logging.getLogger("logger")
@@ -36,6 +29,8 @@ criterion = torch.nn.CrossEntropyLoss()
 torch.manual_seed(1)
 torch.cuda.manual_seed(1)
 random.seed(1)
+
+
 def trigger_test_byindex(helper, index, vis, epoch):
     epoch_loss, epoch_acc, epoch_corret, epoch_total = \
         test.Mytest_poison_trigger(helper=helper, model=helper.target_model,
@@ -47,6 +42,8 @@ def trigger_test_byindex(helper, index, vis, epoch):
         helper.target_model.trigger_agent_test_vis(vis=vis, epoch=epoch, acc=epoch_acc, loss=None,
                                                    eid=helper.params['environment_name'],
                                                    name="global_in_index_" + str(index) + "_trigger")
+
+
 def trigger_test_byname(helper, agent_name_key, vis, epoch):
     epoch_loss, epoch_acc, epoch_corret, epoch_total = \
         test.Mytest_poison_agent_trigger(helper=helper, model=helper.target_model, agent_name_key=agent_name_key)
@@ -57,29 +54,33 @@ def trigger_test_byname(helper, agent_name_key, vis, epoch):
         helper.target_model.trigger_agent_test_vis(vis=vis, epoch=epoch, acc=epoch_acc, loss=None,
                                                    eid=helper.params['environment_name'],
                                                    name="global_in_" + str(agent_name_key) + "_trigger")
-def vis_agg_weight(helper,names,weights,epoch,vis,adversarial_name_keys):
-    print(names)
-    print(adversarial_name_keys)
-    for i in range(0,len(names)):
-        _name= names[i]
-        _weight=weights[i]
-        _is_poison=False
-        if _name in adversarial_name_keys:
-            _is_poison=True
-        helper.target_model.weight_vis(vis=vis,epoch=epoch,weight=_weight, eid=helper.params['environment_name'],
-                                       name=_name,is_poisoned=_is_poison)
 
-def vis_fg_alpha(helper,names,alphas,epoch,vis,adversarial_name_keys):
+
+def vis_agg_weight(helper, names, weights, epoch, vis, adversarial_name_keys):
     print(names)
     print(adversarial_name_keys)
-    for i in range(0,len(names)):
-        _name= names[i]
-        _alpha=alphas[i]
-        _is_poison=False
+    for i in range(0, len(names)):
+        _name = names[i]
+        _weight = weights[i]
+        _is_poison = False
         if _name in adversarial_name_keys:
-            _is_poison=True
-        helper.target_model.alpha_vis(vis=vis,epoch=epoch,alpha=_alpha, eid=helper.params['environment_name'],
-                                       name=_name,is_poisoned=_is_poison)
+            _is_poison = True
+        helper.target_model.weight_vis(vis=vis, epoch=epoch, weight=_weight, eid=helper.params['environment_name'],
+                                       name=_name, is_poisoned=_is_poison)
+
+
+def vis_fg_alpha(helper, names, alphas, epoch, vis, adversarial_name_keys):
+    print(names)
+    print(adversarial_name_keys)
+    for i in range(0, len(names)):
+        _name = names[i]
+        _alpha = alphas[i]
+        _is_poison = False
+        if _name in adversarial_name_keys:
+            _is_poison = True
+        helper.target_model.alpha_vis(vis=vis, epoch=epoch, alpha=_alpha, eid=helper.params['environment_name'],
+                                      name=_name, is_poisoned=_is_poison)
+
 
 if __name__ == '__main__':
     print('Start training')
@@ -152,22 +153,41 @@ if __name__ == '__main__':
                             if helper.params['adversary_list'][idx] not in adversarial_name_keys:
                                 adversarial_name_keys.append(helper.params['adversary_list'][idx])
 
-                nonattacker=[]
+                nonattacker = []
                 for adv in helper.params['adversary_list']:
                     if adv not in adversarial_name_keys:
                         nonattacker.append(copy.deepcopy(adv))
                 benign_num = helper.params['no_models'] - len(adversarial_name_keys)
-                random_agent_name_keys = random.sample(helper.benign_namelist+nonattacker, benign_num)
+                random_agent_name_keys = random.sample(helper.benign_namelist + nonattacker, benign_num)
                 agent_name_keys = adversarial_name_keys + random_agent_name_keys
         else:
-            if helper.params['is_random_adversary']==False:
-                adversarial_name_keys=copy.deepcopy(helper.params['adversary_list'])
+            if helper.params['is_random_adversary'] == False:
+                adversarial_name_keys = copy.deepcopy(helper.params['adversary_list'])
         logger.info(f'Server Epoch:{epoch} choose agents : {agent_name_keys}.')
-        epochs_submit_update_dict, num_samples_dict = train.train(helper=helper, start_epoch=epoch,
-                                                                  local_model=helper.local_model,
-                                                                  target_model=helper.target_model,
-                                                                  is_poison=helper.params['is_poison'],
-                                                                  agent_name_keys=agent_name_keys)
+        epochs_submit_update_dict, num_samples_dict, attack_clean_update_dict = train.train(helper=helper,
+                                                                                            start_epoch=epoch,
+                                                                                            local_model=helper.local_model,
+                                                                                            target_model=helper.target_model,
+                                                                                            is_poison=helper.params['is_poison'],
+                                                                                            agent_name_keys=agent_name_keys)
+        # todo 如果进行攻击改进，修改epochs_submit_update_dict
+        if helper.params['attack_flag'] == 1:
+            if helper.params['attack_methods'] == config.ATTACK_MEAN:
+                epochs_submit_update_dict = helper.attack_mean(helper=helper,
+                                                               epochs_submit_update_dict=epochs_submit_update_dict,
+                                                               attack_clean_update_dict=attack_clean_update_dict,
+                                                               agent_name_keys=agent_name_keys,
+                                                               num_samples_dict=num_samples_dict)
+            elif helper.params['attack_methods'] == config.ATTACK_MULTI_KRUM:
+                epochs_submit_update_dict = helper.attack_multi_krum(helper=helper,
+                                                                     epochs_submit_update_dict=epochs_submit_update_dict,
+                                                                     agent_name_keys=agent_name_keys)
+            elif helper.params['attack_methods'] == config.ATTACK_TRIMMED_MEAN:
+                epochs_submit_update_dict = helper.attack_trimmed_mean(helper=helper,
+                                                                       epochs_submit_update_dict=epochs_submit_update_dict,
+                                                                       agent_name_keys=agent_name_keys)
+
+
         logger.info(f'time spent on training: {time.time() - t}')
         weight_accumulator, updates = helper.accumulate_weight(weight_accumulator, epochs_submit_update_dict,
                                                                agent_name_keys, num_samples_dict)
@@ -180,15 +200,39 @@ if __name__ == '__main__':
             num_oracle_calls = 1
         elif helper.params['aggregation_methods'] == config.AGGR_GEO_MED:
             maxiter = helper.params['geom_median_maxiter']
-            num_oracle_calls, is_updated, names, weights, alphas = helper.geometric_median_update(helper.target_model, updates, maxiter=maxiter)
+            num_oracle_calls, is_updated, names, weights, alphas = helper.geometric_median_update(helper.target_model,
+                                                                                                  updates,
+                                                                                                  maxiter=maxiter)
             vis_agg_weight(helper, names, weights, epoch, vis, adversarial_name_keys)
             vis_fg_alpha(helper, names, alphas, epoch, vis, adversarial_name_keys)
 
         elif helper.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
             is_updated, names, weights, alphas = helper.foolsgold_update(helper.target_model, updates)
-            vis_agg_weight(helper,names,weights,epoch,vis,adversarial_name_keys)
-            vis_fg_alpha(helper,names,alphas,epoch,vis,adversarial_name_keys )
+            vis_agg_weight(helper, names, weights, epoch, vis, adversarial_name_keys)
+            vis_fg_alpha(helper, names, alphas, epoch, vis, adversarial_name_keys)
             num_oracle_calls = 1
+
+        # todo
+        elif helper.params['aggregation_methods'] == config.AGGR_MULTI_KRUM:
+            _, topk_names = helper.multi_krum_update(updates)
+            is_updated = helper.grad_mean_update(target_model=helper.target_model,
+                                                 epochs_submit_update_dict=epochs_submit_update_dict,
+                                                 topk_names=topk_names,
+                                                 num_samples_dict=num_samples_dict)
+
+        # todo
+        elif helper.params['aggregation_methods'] == config.AGGR_TRIMMED_MEAN:
+            names = [name for (name, _) in updates.items()]
+            is_updated = helper.trimmed_mean_update(target_model=helper.target_model,
+                                                    epochs_submit_update_dict=epochs_submit_update_dict,
+                                                    names=names)
+
+        # todo
+        elif helper.params['aggregation_methods'] == config.AGGR_BULYAN:
+            _, topk_names = helper.multi_krum_update(updates)
+            is_updated = helper.trimmed_mean_update(target_model=helper.target_model,
+                                                    epochs_submit_update_dict=epochs_submit_update_dict,
+                                                    names=topk_names)
 
         # clear the weight_accumulator
         weight_accumulator = helper.init_weight_accumulator(helper.target_model)
@@ -199,7 +243,7 @@ if __name__ == '__main__':
                                                                        model=helper.target_model, is_poison=False,
                                                                        visualize=True, agent_name_key="global")
         csv_record.test_result.append(["global", temp_global_epoch, epoch_loss, epoch_acc, epoch_corret, epoch_total])
-        if len(csv_record.scale_temp_one_row)>0:
+        if len(csv_record.scale_temp_one_row) > 0:
             csv_record.scale_temp_one_row.append(round(epoch_acc, 4))
 
         if helper.params['is_poison']:
@@ -213,7 +257,6 @@ if __name__ == '__main__':
 
             csv_record.posiontest_result.append(
                 ["global", temp_global_epoch, epoch_loss, epoch_acc_p, epoch_corret, epoch_total])
-
 
             # test on local triggers
             csv_record.poisontriggertest_result.append(
@@ -234,11 +277,8 @@ if __name__ == '__main__':
         logger.info(f'Done in {time.time() - start_time} sec.')
         csv_record.save_result_csv(epoch, helper.params['is_poison'], helper.folder_path)
 
-
-
     logger.info('Saving all the graphs.')
     logger.info(f"This run has a label: {helper.params['current_time']}. "
                 f"Visdom environment: {helper.params['environment_name']}")
-
 
     vis.save([helper.params['environment_name']])

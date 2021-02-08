@@ -1,14 +1,13 @@
+import logging
+import math
+import time
 from shutil import copyfile
 
-import math
-import torch
-
-from torch.autograd import Variable
-import logging
 import sklearn.metrics.pairwise as smp
-from torch.nn.functional import log_softmax
+import torch
 import torch.nn.functional as F
-import time
+from torch.autograd import Variable
+from torch.nn.functional import log_softmax
 
 logger = logging.getLogger("logger")
 import os
@@ -190,17 +189,20 @@ class Helper:
 
         return noised_layer
 
-    def accumulate_weight(self, weight_accumulator, epochs_submit_update_dict, state_keys,num_samples_dict):
+    def accumulate_weight(self, weight_accumulator, epochs_submit_update_dict, state_keys, num_samples_dict):
         """
          return Args:
              updates: dict of (num_samples, update), where num_samples is the
                  number of training samples corresponding to the update, and update
                  is a list of variable weights
          """
-        if self.params['aggregation_methods'] == config.AGGR_FOOLSGOLD:
+        if self.params['aggregation_methods'] == config.AGGR_FOOLSGOLD \
+                or self.params['aggregation_methods'] == config.AGGR_MULTI_KRUM \
+                or self.params['aggregation_methods'] == config.AGGR_TRIMMED_MEAN \
+                or self.params['aggregation_methods'] == config.AGGR_BULYAN:
             updates = dict()
             for i in range(0, len(state_keys)):
-                local_model_gradients = epochs_submit_update_dict[state_keys[i]][0] # agg 1 interval
+                local_model_gradients = epochs_submit_update_dict[state_keys[i]][0]  # agg 1 interval
                 num_samples = num_samples_dict[state_keys[i]]
                 updates[state_keys[i]] = (num_samples, copy.deepcopy(local_model_gradients))
             return None, updates
@@ -209,26 +211,26 @@ class Helper:
             updates = dict()
             for i in range(0, len(state_keys)):
                 local_model_update_list = epochs_submit_update_dict[state_keys[i]]
-                update= dict()
-                num_samples=num_samples_dict[state_keys[i]]
+                update = dict()
+                num_samples = num_samples_dict[state_keys[i]]
 
                 for name, data in local_model_update_list[0].items():
                     update[name] = torch.zeros_like(data)
 
                 for j in range(0, len(local_model_update_list)):
-                    local_model_update_dict= local_model_update_list[j]
+                    local_model_update_dict = local_model_update_list[j]
                     for name, data in local_model_update_dict.items():
                         weight_accumulator[name].add_(local_model_update_dict[name])
                         update[name].add_(local_model_update_dict[name])
-                        detached_data= data.cpu().detach().numpy()
+                        detached_data = data.cpu().detach().numpy()
                         # print(detached_data.shape)
-                        detached_data=detached_data.tolist()
+                        detached_data = detached_data.tolist()
                         # print(detached_data)
-                        local_model_update_dict[name]=detached_data # from gpu to cpu
+                        local_model_update_dict[name] = detached_data  # from gpu to cpu
 
-                updates[state_keys[i]]=(num_samples,update)
+                updates[state_keys[i]] = (num_samples, update)
 
-            return weight_accumulator,updates
+            return weight_accumulator, updates
 
     def init_weight_accumulator(self, target_model):
         weight_accumulator = dict()
@@ -372,12 +374,181 @@ class Helper:
 
         return num_oracle_calls, is_updated, names, wv.cpu().numpy().tolist(),alphas
 
+    # todo
+    def grad_mean_update(self, target_model, epochs_submit_update_dict, topk_names, num_samples_dict):
+        total_no_samples = 0
+        gradients = []
+        cnt = 0
+        for name in topk_names:
+            total_no_samples += num_samples_dict[name]
+            grads = epochs_submit_update_dict[name][0]
+            for i, grad in enumerate(grads):
+                if cnt == 0:
+                    gradients.append(grad * num_samples_dict[name])
+                else:
+                    gradients[i] += grad * num_samples_dict[name]
+            cnt += 1
+        gradients = np.divide(gradients, total_no_samples)
+
+        target_model.train()
+        # train and update
+        optimizer = torch.optim.SGD(target_model.parameters(), lr=self.params['lr'],
+                                    momentum=self.params['momentum'],
+                                    weight_decay=self.params['decay'])
+
+        optimizer.zero_grad()
+
+        # 按层更新
+        for i, (k, v) in enumerate(target_model.named_parameters()):
+            if v.requires_grad:
+                v.grad = gradients[i].to(config.device)
+        optimizer.step()
+        return True
+
+    # todo
+    def multi_krum_update(self, updates):
+        client_grads = []
+        alphas = []
+        names = []
+        for name, data in updates.items():
+            client_grads.append(data[1])  # gradient
+            alphas.append(data[0])  # num_samples
+            names.append(name)
+
+        no_models = len(updates)
+
+        grad_len = np.array(client_grads[0][-2].cpu().data.numpy().shape).prod()
+        grads = np.zeros((no_models, grad_len))
+        for i in range(len(client_grads)):
+            grads[i] = np.reshape(client_grads[i][-2].cpu().data.numpy(), (grad_len))
+
+        # 计算score
+        distances = []
+        for i, g_i in enumerate(grads):
+            distance = []
+            for j in range(i + 1, no_models):
+                if i != j:
+                    g_j = grads[j]
+                    distance.append(float(np.linalg.norm(g_i - g_j) ** 2))
+            distances.append(distance)
+
+        no_in = no_models - (int)(no_models * 0.33) - 2
+        scores = []
+        for i, g_i in enumerate(grads):
+            dists = []
+            for j, g_j in enumerate(grads):
+                if j == i:
+                    continue
+                if j < i:
+                    dists.append(distances[j][i - j - 1])
+                else:
+                    dists.append(distances[i][j - i - 1])
+            topk_idx = np.argpartition(dists, no_in)[:no_in]
+            scores.append(sum(np.take(dists, topk_idx)))
+
+        logger.info("选中的训练者：{}".format(names))
+        logger.info("scores：{}".format(scores))
+        topk_idxs = np.argpartition(scores, no_in + 2)[:no_in + 2]
+        topk_names = [names[i] for i in topk_idxs]
+        logger.info("选中的聚合者：{}".format(topk_names))
+        return topk_idxs, topk_names
+
+    # todo
+    def trimmed_mean_update(self, target_model, epochs_submit_update_dict, names):
+        gradients = []
+        no_models = len(names)
+        b = (int)(no_models * 0.2)
+        cnt = 0
+        shapes = []
+        for name in names:
+            grads = epochs_submit_update_dict[name][0]
+            if cnt == 0:
+                shapes = [param.cpu().numpy().shape for param in grads]
+                cnt += 1
+            grads2 = np.concatenate([param.cpu().numpy().flatten() for param in grads])
+            gradients.append(grads2)
+
+        no_grads = len(gradients[0])
+        gradients = np.array(gradients)
+        final_grads = []
+        for i in range(no_grads):
+            temp = gradients[:, i]
+            if i % 10000 == 0:
+                logger.info(temp)
+            temp = sorted(temp)[b:-b]
+            final_grads.append(np.mean(temp))
+
+        # todo 将一维数组转为多维
+        cur = 0
+        update_grads = []
+        for shape in shapes:
+            temp_x = np.array(shape)
+            temp_len = np.prod(temp_x, axis=0)
+            temp_grads = final_grads[cur:cur + temp_len]
+            temp_grads = np.array(temp_grads).reshape(temp_x)
+            cur += temp_len
+            update_grads.append(temp_grads)
+
+        target_model.train()
+        # train and update
+        optimizer = torch.optim.SGD(target_model.parameters(), lr=self.params['lr'],
+                                    momentum=self.params['momentum'],
+                                    weight_decay=self.params['decay'])
+        optimizer.zero_grad()
+        # 按层更新
+        for i, (k, v) in enumerate(target_model.named_parameters()):
+            if v.requires_grad:
+                v.grad = torch.tensor(update_grads[i]).to(config.device)
+        optimizer.step()
+        return True
+
+    # todo 攻击mean
+    def attack_mean(self, helper, epochs_submit_update_dict, attack_clean_update_dict, agent_name_keys, num_samples_dict):
+        weight_accumulator = self.init_weight_accumulator(helper.target_model)
+        adversary_list = helper.params['adversary_list']
+        adversary_num = len(adversary_list)
+        updates = dict()
+        for i in range(0, adversary_num):
+            local_model_update_list = attack_clean_update_dict[adversary_list[i]]
+            print('len(local_model_update_list):', len(local_model_update_list))
+            print(local_model_update_list)
+            break
+            update = dict()
+            num_samples = num_samples_dict[adversary_list[i]]
+
+            for name, data in local_model_update_list[0].items():
+                update[name] = torch.zeros_like(data)
+
+            for j in range(0, len(local_model_update_list)):
+                local_model_update_dict = local_model_update_list[j]
+                for name, data in local_model_update_dict.items():
+                    weight_accumulator[name].add_(local_model_update_dict[name])
+                    update[name].add_(local_model_update_dict[name])
+                    detached_data = data.cpu().detach().numpy()
+                    # print(detached_data.shape)
+                    detached_data = detached_data.tolist()
+                    # print(detached_data)
+                    local_model_update_dict[name] = detached_data  # from gpu to cpu
+
+            updates[state_keys[i]] = (num_samples, update)
+
+
+        return epochs_submit_update_dict
+
+    # todo 攻击multi_krum
+    def attack_multi_krum(self, helper, epochs_submit_update_dict, agent_name_keys):
+        return epochs_submit_update_dict
+
+    # todo 攻击trimmed_mean
+    def attack_trimmed_mean(self, helper, epochs_submit_update_dict, agent_name_keys):
+        return epochs_submit_update_dict
+
     @staticmethod
     def l2dist(p1, p2):
         """L2 distance between p1, p2, each of which is a list of nd-arrays"""
         squared_sum = 0
         for name, data in p1.items():
-            squared_sum += torch.sum(torch.pow(p1[name]- p2[name], 2))
+            squared_sum += torch.sum(torch.pow(p1[name] - p2[name], 2))
         return math.sqrt(squared_sum)
 
 
