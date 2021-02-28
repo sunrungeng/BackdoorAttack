@@ -1,0 +1,2 @@
+current path: saved_models/model_cifar_Mar.01_01.00.49
+Loading data

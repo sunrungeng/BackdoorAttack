@@ -178,6 +178,12 @@ if __name__ == '__main__':
                                                                attack_clean_update_dict=attack_clean_update_dict,
                                                                agent_name_keys=agent_name_keys,
                                                                num_samples_dict=num_samples_dict)
+            elif helper.params['attack_methods'] == config.ATTACK_GEO_MED:
+                epochs_submit_update_dict = helper.attack_geo_mean(helper=helper,
+                                                                   epochs_submit_update_dict=epochs_submit_update_dict,
+                                                                   attack_clean_update_dict=attack_clean_update_dict,
+                                                                   agent_name_keys=agent_name_keys,
+                                                                   num_samples_dict=num_samples_dict)
             elif helper.params['attack_methods'] == config.ATTACK_MULTI_KRUM:
                 epochs_submit_update_dict = helper.attack_multi_krum(helper=helper,
                                                                      epochs_submit_update_dict=epochs_submit_update_dict,

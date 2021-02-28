@@ -529,24 +529,31 @@ class Helper:
 
             updates[adversary_list[i]] = (num_samples, update)
 
+        for name, data in weight_accumulator.items():
+            weight_accumulator[name].mul_(1 / adversary_num)
+
         random.shuffle(adversary_list)
         print('打乱后的adversary_list: ', adversary_list)
-        attack_key = adversary_list[0]
-        attack_dict = dict()
-        for name, data in epochs_submit_update_dict[attack_key][0].items():
-            attack_dict[name] = torch.zeros_like(data)
-            attack_dict[name] = copy.deepcopy(data)
-            weight_accumulator[name].mul_(len(agent_name_keys) - 1)
-            attack_dict[name].mul_(len(agent_name_keys))
-            attack_dict[name].add_(weight_accumulator[name].mul_(-1))
+        for i in range(helper.params['adversary_number']):
+            attack_key = adversary_list[i]
+            attack_dict = dict()
+            for name, data in epochs_submit_update_dict[attack_key][0].items():
+                attack_dict[name] = torch.zeros_like(data)
+                attack_dict[name] = copy.deepcopy(data)
+                attack_dict[name].mul_(len(agent_name_keys) / helper.params['adversary_number'] - 3)
+                attack_dict[name].add_(
+                    weight_accumulator[name].mul(-1 * (len(agent_name_keys) / helper.params['adversary_number'] - 4)))
 
-        epochs_submit_update_dict[attack_key][0] = attack_dict
-        for i in range(1, len(adversary_list)):
-            if i == 1:
-                print(epochs_submit_update_dict[adversary_list[i]])
-                print(attack_clean_update_dict[adversary_list[i]])
+            epochs_submit_update_dict[attack_key][0] = attack_dict
+
+        for i in range(helper.params['adversary_number'], len(adversary_list)):
             epochs_submit_update_dict[adversary_list[i]] = attack_clean_update_dict[adversary_list[i]]
         return epochs_submit_update_dict
+
+    # todo 攻击geo_median
+    def attack_geo_meidan(self, helper, epochs_submit_update_dict, attack_clean_update_dict, agent_name_keys, num_samples_dict):
+        return epochs_submit_update_dict
+
 
     # todo 攻击multi_krum
     def attack_multi_krum(self, helper, epochs_submit_update_dict, agent_name_keys):
@@ -586,16 +593,16 @@ class Helper:
         """
         tot_weights = torch.sum(weights)
 
-        weighted_updates= dict()
+        weighted_updates = dict()
 
         for name, data in points[0].items():
-            weighted_updates[name]=  torch.zeros_like(data)
+            weighted_updates[name] = torch.zeros_like(data)
         for w, p in zip(weights, points): # 对每一个agent
             for name, data in weighted_updates.items():
                 temp = (w / tot_weights).float().to(config.device)
-                temp= temp* (p[name].float())
+                temp = temp * (p[name].float())
                 # temp = w / tot_weights * p[name]
-                if temp.dtype!=data.dtype:
+                if temp.dtype != data.dtype:
                     temp = temp.type_as(data)
                 data.add_(temp)
 

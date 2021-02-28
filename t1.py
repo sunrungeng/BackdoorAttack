@@ -13,3 +13,8 @@ x = range(4)
 x = np.array(x)
 random.shuffle(x)
 print(x)
+
+y = range(4, 4)
+for i in y:
+    print(i)
+    print(1)

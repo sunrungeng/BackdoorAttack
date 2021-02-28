@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-log_file = '../saved_models/model_mnist_Feb.09_09.14.57/log.txt'
+log_file = '../../saved_models/model_mnist_Feb.18_08.40.09/log.txt'
 
 false_posion = []
 true_posion = []
